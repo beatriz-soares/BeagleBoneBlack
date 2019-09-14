@@ -1,28 +1,21 @@
-
-
-
-
-
-// UFRN-CT-DCA
-// Disciplina: Sistemas de Tempo Real
-// Programa: prioridade.cpp
-
-
-#include  <time.h>
-#include <iostream> // para: cout
-#include <stdio.h>
-#include <unistd.h>  // para: sleep()
+#include <iostream>
+#include "../BlackGPIO/BlackGPIO.h"
+#include <time.h>
 #include <stdlib.h>
-#include <math.h>
-
+#include <unistd.h>
+#include "../ADC/Adc.h"
+#include <stdio.h>
 #include <sys/time.h>     // getpriority(int which, int who)  setpriority(int which, int who, int prio);
 #include <sys/resource.h>
-
-//using std::cout;
-using namespace std;
+#include <math.h>
 
 
-// função para simular carregamento da CPU
+using namespace BlackLib;
+
+
+// funcao que realiza loops e calculos que tomam tempo na CPU.
+// dependendo da prioridade do processo, esses calculos podem ser
+// feitos mais rapidamente ou nao
 void carga(int k)
 {
   float f = 0.999999;
@@ -39,103 +32,59 @@ void carga(int k)
 
 }
 
+int main(int argc, char* argv[]){
+	pid_t pid1;
 
-int main( ){
+	BlackGPIO saida2(GPIO_69, output); // pino P8_8
+	BlackGPIO saida(GPIO_67, output); // pino P8_9
+	
+	ADC adc(AINx::AIN0); //pino P9_39
+	ADC adc_filho(AINx::AIN2); // pino p9_37
+	
+	pid1 = fork(); // abrindo um novo processo para mudarmos a prioridade de pai e filho separadamente
 
-     clock_t time_1, time_2;
-     time_t  real_time_1, real_time_2, delta_real_time;
-    
-     int saida;
-     double saida2;
+	switch(pid1)
+	    {
+	    case -1:       // erro na abertura do processo filho
+	      exit(1);  
+	    case 0:        // Parte a ser executada pelo processo Filho
+	      while(1) {
+		// setamos a prioridade para o valor do adc/200 pois irá de 0 a 20
+		setpriority(PRIO_PROCESS, 0, adc_filho.getIntValue()/200); 
 
-    
-    
-    // nice(50); muda a prioridade do processo via comando nice(int valor): valores positivos - negativos só para root
-    
-    //int getpriority(int which, int who);  // which: PRIO_PROCESS, PRIO_PGRP, or PRIO_USER
-    //int setpriority(int which, int who, int prio);
+    		cout << "valor da prioridade do processo filho, após setpriority(): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
+	        printf("Sou o processo Filho e peguei o adc taqui: %d\n", adc_filho.getIntValue());
 
-    
-                                                               
-                                                               
-    cout << "valor da prioridade do processo: " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-    //cout << "valor da prioridade do processo: " << getpriority(PRIO_PROCESS, getpid() ) <<endl;
-    
-    setpriority(PRIO_PROCESS, 0, 5);
-    cout << "valor da prioridade do processo, após primeiro setpriority(): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-    
-    setpriority(PRIO_PROCESS, 0, 10);
-    cout << "valor da prioridade do processo: após segundo setpriority() " << getpriority(PRIO_PROCESS, 0 ) <<endl;
+		// esse high e low vao fazer piscar o led, e a velocidade depende do tempo que levar pra fazer a carga
+		// e a carga demorara mais ou menos, dependendo da prioridade do processo
+		saida.setValue(high);
+		cout<<"vou fazer a carga pra desligar o filho..."<<endl;
+		carga(1000);
+		saida.setValue(low);
+		cout<<"vou fazer a carga pra ligar o filho..."<<endl;
+		carga(1000);
+	      }
+	      break;
+	    default:       // parte a ser executada pelo processo Pai
+	      while(1) {
+		setpriority(PRIO_PROCESS, 0, adc.getIntValue()/200);
 
-    
-    setpriority(PRIO_PROCESS, 0, 5);
-    cout << "valor da prioridade do processo: após terceiro setpriority() " << getpriority(PRIO_PROCESS, 0 ) <<endl;
+    		cout << "valor da prioridade do processo pai, após setpriority(): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
+	        printf("\nSou o processo Pai e tbm peguei o adc, olha so: %d \n", adc.getIntValue());
 
-    // --------------------------------------------------------------
-    //  Outras formas de setar a prioridade do processo
-    //
-    //  setpriority(PRIO_PROCESS, getpid(), 5);
-    //  setpriority(PRIO_USER, getuid(), 5);    // seta a prioridade do shell
-    //  cout << "valor da prioridade do processo: " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-    //
-    // ---------------------------------------------------------------
-    
-    
-    //nice(10);
-    //cout << "valor da prioridade do processo, após o nice(10): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-    
-    
-    // ------------------------------------------------------------------------------------------------
-    //
-    //            Teste estas opções a baixo e tire as suas conclusões sobre os comandos nice e setpriority()
-    //  -----------------------------------------------------------------------------------------------
-    //
-    //nice(1);
-    //cout << "valor da prioridade do processo, após o segundo nice(): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-    
-    
-    //nice(1);
-    //cout << "valor da prioridade do processo, após o segundo nice(): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-    
-    //setpriority(PRIO_PROCESS, 0, 10);
-    //cout << "valor da prioridade do processo, apos segundo setpriority(): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-    //
-    // -----------------------------------------------------------------------------------------------
-    
-    
-    
-    // ---------------------------------------------------------------------------------
-    //
-    //  Parte do código associada com uso intenso de CPU : início
-    //
-    //  --------------------------------------------------------------------------------
-    
-     time_1 = clock();
-     real_time_1 = time(0);
-     carga(10000);       // funcão de uso intenso de CPU
-     sleep(6);
-     real_time_2 = time(0);
-     time_2 = clock();
 
-    
-    saida = (int) (time_2) - (time_1);  // tempo de CPU
-    saida2 = (double) ((saida) / (double) CLOCKS_PER_SEC) ;
-    delta_real_time = (real_time_2) - (real_time_1);
-    
-    printf("\n Tempo de uso da CPU em microsegundos: %d \n", saida);
-    printf(" Tempo de uso da CPU em segundos: %f \n", saida2);
-    printf(" Tempo Real decorrido em microsegundos: %d \n", (int) delta_real_time);
-    cout << "\n\n  valor da prioridade do processo - final: " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-    
-    // ---------------------------------------------------------------------------------
-    //
-    //  Parte do código associada com uso intenso de CPU : fim
-    //
-    //  --------------------------------------------------------------------------------
-    
-    
-    
-    exit(1);
+		saida2.setValue(high);
+		cout<<"vou fazer a carga pra desligar o pai..."<<endl;
+		carga(1000);
+		saida2.setValue(low);
+		cout<<"vou fazer a carga pra ligar o pai..."<<endl;
+		carga(1000);
 
+	      }
+		break;
+	}
+	
+
+	return 0;
 }
 
