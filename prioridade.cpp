@@ -33,7 +33,7 @@ void carga(int k)
 }
 
 int main(int argc, char* argv[]){
-	pid_t pid1;
+	pid_t pid1, pid2;
 
 	BlackGPIO saida2(GPIO_69, output); // pino P8_8
 	BlackGPIO saida(GPIO_67, output); // pino P8_9
@@ -49,38 +49,48 @@ int main(int argc, char* argv[]){
 	      exit(1);  
 	    case 0:        // Parte a ser executada pelo processo Filho
 	      while(1) {
-		// setamos a prioridade para o valor do adc/200 pois irá de 0 a 20
-		setpriority(PRIO_PROCESS, 0, adc_filho.getIntValue()/200); 
-
-    		cout << "valor da prioridade do processo filho, após setpriority(): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-	        printf("Sou o processo Filho e peguei o adc taqui: %d\n", adc_filho.getIntValue());
 
 		// esse high e low vao fazer piscar o led, e a velocidade depende do tempo que levar pra fazer a carga
 		// e a carga demorara mais ou menos, dependendo da prioridade do processo
 		saida.setValue(high);
-		cout<<"vou fazer a carga pra desligar o filho..."<<endl;
+		cout<<"vou fazer a carga pra desligar o filho 1..."<<endl;
 		carga(1000);
 		saida.setValue(low);
-		cout<<"vou fazer a carga pra ligar o filho..."<<endl;
+		cout<<"vou fazer a carga pra ligar o filho 1..."<<endl;
 		carga(1000);
 	      }
 	      break;
 	    default:       // parte a ser executada pelo processo Pai
-	      while(1) {
-		setpriority(PRIO_PROCESS, 0, adc.getIntValue()/200);
+              pid2 = fork();
+              switch(pid2)
+	    	{
+		    case -1:       // erro na abertura do processo filho
+		      exit(1);  
+		    case 0:        // Parte a ser executada pelo processo Filho
 
-    		cout << "valor da prioridade do processo pai, após setpriority(): " << getpriority(PRIO_PROCESS, 0 ) <<endl;
-	        printf("\nSou o processo Pai e tbm peguei o adc, olha so: %d \n", adc.getIntValue());
+	      		while(1) {
+				
+				saida2.setValue(high);
+				cout<<"vou fazer a carga pra desligar o filho 2..."<<endl;
+				carga(1000);
+				saida2.setValue(low);
+				cout<<"vou fazer a carga pra ligar o filho 2..."<<endl;
+				carga(1000);
 
-
-		saida2.setValue(high);
-		cout<<"vou fazer a carga pra desligar o pai..."<<endl;
-		carga(1000);
-		saida2.setValue(low);
-		cout<<"vou fazer a carga pra ligar o pai..."<<endl;
-		carga(1000);
-
-	      }
+			 }
+				break;
+		    default:
+			while(1){
+				// setamos a prioridade para o valor do adc/200 pois irá de 0 a 20
+				// somando +5 pra os filhos sempre terem menos prioridade que os pais
+				setpriority(PRIO_PROCESS, pid1, adc_filho.getIntValue()/200 + 5);
+				setpriority(PRIO_PROCESS, pid2, adc.getIntValue()/200 + 5);
+				cout << "valor da prioridade do processo filho 1, após setpriority(): " << getpriority(PRIO_PROCESS, pid1 ) <<endl;
+				cout << "valor da prioridade do processo filho 2, após setpriority(): " << getpriority(PRIO_PROCESS, pid2 ) <<endl;
+				sleep(1);
+			}
+			break;
+	       }
 		break;
 	}
 	
